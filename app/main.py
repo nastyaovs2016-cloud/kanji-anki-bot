@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import threading
@@ -45,11 +46,30 @@ def main() -> None:
     cfg = settings()
     if not cfg.bot_token:
         raise SystemExit("TELEGRAM_BOT_TOKEN is not set")
-    _start_health(int(os.environ.get("PORT", "7860")))
+    port = int(os.environ.get("PORT", "7860"))
+    # On a host that provides a public URL (e.g. Render sets RENDER_EXTERNAL_URL),
+    # run in webhook mode so the bot wakes on incoming messages. Otherwise fall
+    # back to long-polling (local dev / always-on hosts).
+    base_url = os.environ.get("WEBHOOK_URL") or os.environ.get("RENDER_EXTERNAL_URL")
+
     application = ApplicationBuilder().token(cfg.bot_token).build()
     register(application, cfg)
     application.add_error_handler(on_error)
-    application.run_polling(drop_pending_updates=True)
+
+    if base_url:
+        secret_path = hashlib.sha256(cfg.bot_token.encode()).hexdigest()[:32]
+        logger.info("Starting in webhook mode on port %s", port)
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=secret_path,
+            webhook_url=f"{base_url.rstrip('/')}/{secret_path}",
+            drop_pending_updates=True,
+        )
+    else:
+        logger.info("Starting in polling mode; health server on port %s", port)
+        _start_health(port)
+        application.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":

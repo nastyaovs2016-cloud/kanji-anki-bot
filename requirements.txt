@@ -1,4 +1,4 @@
-python-telegram-bot==21.6
+python-telegram-bot[webhooks]==21.6
 genanki==0.13.1
 requests==2.32.3
 pytest==8.3.3
