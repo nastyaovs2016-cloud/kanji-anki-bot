@@ -40,9 +40,9 @@ def deck_keyboard(deck_names: list[str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def _preview_keyboard(has_examples: bool) -> InlineKeyboardMarkup:
+def _preview_keyboard(multiple_examples: bool) -> InlineKeyboardMarkup:
     row = []
-    if has_examples:
+    if multiple_examples:
         row.append(InlineKeyboardButton("🔀 Другой пример", callback_data="next"))
     row.append(InlineKeyboardButton("✅ Выбрать колоду", callback_data="choose"))
     return InlineKeyboardMarkup([row])
@@ -82,7 +82,7 @@ def register(application: Application, settings: Settings) -> None:
         ctx.user_data["cd"] = cd
         ctx.user_data["index"] = 0
         await update.message.reply_text(
-            preview_text(cd, 0), reply_markup=_preview_keyboard(bool(cd.examples)))
+            preview_text(cd, 0), reply_markup=_preview_keyboard(len(cd.examples) > 1))
 
     async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not owns(update):
@@ -117,7 +117,7 @@ def register(application: Application, settings: Settings) -> None:
         ctx.user_data["index"] = ctx.user_data.get("index", 0) + 1
         await q.edit_message_text(
             preview_text(cd, ctx.user_data["index"]),
-            reply_markup=_preview_keyboard(bool(cd.examples)))
+            reply_markup=_preview_keyboard(len(cd.examples) > 1))
 
     async def on_choose(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         q = update.callback_query
@@ -154,17 +154,18 @@ def register(application: Application, settings: Settings) -> None:
         index = ctx.user_data.get("index", 0)
         example = cd.examples[index % len(cd.examples)] if cd.examples else None
         image_path = sound_path = None
-        if example:
-            img_url, snd_url = immersionkit.media_urls(example, deck_map)
-            if img_url:
-                image_path = await _to_thread(_download, img_url, ".jpg")
-            if snd_url:
-                sound_path = await _to_thread(_download, snd_url, ".mp3")
-        fd, out = tempfile.mkstemp(suffix=".apkg")
-        os.close(fd)
-        await _to_thread(card.build_apkg, cd.word_info, cd.glosses, example,
-                         image_path, sound_path, deck_name, out)
+        out = None
         try:
+            if example:
+                img_url, snd_url = immersionkit.media_urls(example, deck_map)
+                if img_url:
+                    image_path = await _to_thread(_download, img_url, ".jpg")
+                if snd_url:
+                    sound_path = await _to_thread(_download, snd_url, ".mp3")
+            fd, out = tempfile.mkstemp(suffix=".apkg")
+            os.close(fd)
+            await _to_thread(card.build_apkg, cd.word_info, cd.glosses, example,
+                             image_path, sound_path, deck_name, out)
             with open(out, "rb") as f:
                 await chat.send_document(f, filename=f"{cd.word_info.word}.apkg",
                                          caption=f"Готово → «{deck_name}». Открой в AnkiMobile.")
