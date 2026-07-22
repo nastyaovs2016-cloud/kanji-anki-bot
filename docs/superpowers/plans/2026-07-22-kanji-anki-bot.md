@@ -10,6 +10,9 @@
 
 ## Global Constraints
 
+- **Deploy target** is Python 3.11 (the Docker base image `python:3.11-slim`), but the **local test interpreter is Python 3.9** in the repo's prepared virtualenv at `.venv` (already created, with all deps installed). Run every test/verify command through it: `.venv/bin/python -m pytest ...`. Wherever a task step says `python -m pytest` or `python -c ...`, run it as `.venv/bin/python -m pytest` / `.venv/bin/python -c` instead.
+- **Every new `app/*.py` module MUST start with `from __future__ import annotations` as its first line** (before other imports). The code uses `X | None` union annotations, which require this on Python 3.9. This is mandatory and is not "extra" scope.
+- Keep test output pristine: `pytest.ini` (created in Task 1) filters the benign `urllib3 NotOpenSSLWarning` emitted under LibreSSL. Do not add other warning filters.
 - Python 3.11 (matches the Docker base image `python:3.11-slim`).
 - No paid services. APIs used: jisho.org, kanjiapi.dev, apiv2.immersionkit.com, api.ocr.space (free key). Verified working 2026-07-22 — see `docs/superpowers/research/2026-07-22-api-findings.md`.
 - ImmersionKit search endpoint: `GET https://apiv2.immersionkit.com/search?q=<word>&sort=sentence_length:asc&category=anime`. The parameter is `q` (not `keyword`); `sort` MUST include order (`sentence_length:asc`).
@@ -63,7 +66,7 @@ kanji-anki-bot/
 ### Task 1: Project scaffolding, config, dependencies
 
 **Files:**
-- Create: `requirements.txt`, `.env.example`, `app/__init__.py`, `app/config.py`
+- Create: `requirements.txt`, `.env.example`, `pytest.ini`, `app/__init__.py`, `app/config.py`
 - Test: `tests/test_config.py`
 - Existing (already committed): `app/data/immersionkit_decks.json`
 
@@ -96,6 +99,14 @@ DECK_NAMES=Японский::Слова,Японский::Кандзи,Default
 ```
 
 - [ ] **Step 3: Create `app/__init__.py`** (empty file)
+
+- [ ] **Step 3b: Create `pytest.ini`** (repo root)
+
+```ini
+[pytest]
+filterwarnings =
+    ignore::urllib3.exceptions.NotOpenSSLWarning
+```
 
 - [ ] **Step 4: Write the failing test** — `tests/test_config.py`
 
