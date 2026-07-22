@@ -64,7 +64,7 @@ def register(application: Application, settings: Settings) -> None:
     deck_map = load_deck_map()
 
     def owns(update: Update) -> bool:
-        return update.effective_user and update.effective_user.id == settings.owner_id
+        return bool(update.effective_user and update.effective_user.id == settings.owner_id)
 
     async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not owns(update):
@@ -109,6 +109,8 @@ def register(application: Application, settings: Settings) -> None:
     async def on_next(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         q = update.callback_query
         await q.answer()
+        if not owns(update):
+            return
         cd = ctx.user_data.get("cd")
         if not cd:
             return
@@ -120,6 +122,8 @@ def register(application: Application, settings: Settings) -> None:
     async def on_choose(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         q = update.callback_query
         await q.answer()
+        if not owns(update):
+            return
         rows = deck_keyboard(settings.deck_names).inline_keyboard
         rows = list(rows) + [[InlineKeyboardButton("✏️ Своя колода", callback_data="custom")]]
         await q.edit_message_text("В какую колоду добавить?",
@@ -128,16 +132,20 @@ def register(application: Application, settings: Settings) -> None:
     async def on_deck(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         q = update.callback_query
         await q.answer()
+        if not owns(update):
+            return
         idx = int(q.data.split(":", 1)[1])
-        await _build_and_send(update, ctx, settings.deck_names[idx], via_query=True)
+        await _build_and_send(update, ctx, settings.deck_names[idx])
 
     async def on_custom(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         q = update.callback_query
         await q.answer()
+        if not owns(update):
+            return
         ctx.user_data["awaiting_custom_deck"] = True
         await q.edit_message_text("Напиши название колоды сообщением.")
 
-    async def _build_and_send(update, ctx, deck_name, via_query=False):
+    async def _build_and_send(update, ctx, deck_name):
         cd = ctx.user_data.get("cd")
         chat = update.effective_chat
         if not cd:
@@ -152,12 +160,21 @@ def register(application: Application, settings: Settings) -> None:
                 image_path = await _to_thread(_download, img_url, ".jpg")
             if snd_url:
                 sound_path = await _to_thread(_download, snd_url, ".mp3")
-        out = tempfile.mktemp(suffix=".apkg")
+        fd, out = tempfile.mkstemp(suffix=".apkg")
+        os.close(fd)
         await _to_thread(card.build_apkg, cd.word_info, cd.glosses, example,
                          image_path, sound_path, deck_name, out)
-        with open(out, "rb") as f:
-            await chat.send_document(f, filename=f"{cd.word_info.word}.apkg",
-                                     caption=f"Готово → «{deck_name}». Открой в AnkiMobile.")
+        try:
+            with open(out, "rb") as f:
+                await chat.send_document(f, filename=f"{cd.word_info.word}.apkg",
+                                         caption=f"Готово → «{deck_name}». Открой в AnkiMobile.")
+        finally:
+            for path in (out, image_path, sound_path):
+                if path is not None:
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.PHOTO, on_photo))
