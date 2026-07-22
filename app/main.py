@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -44,7 +45,7 @@ def main() -> None:
     cfg = settings()
     if not cfg.bot_token:
         raise SystemExit("TELEGRAM_BOT_TOKEN is not set")
-    _start_health()
+    _start_health(int(os.environ.get("PORT", "7860")))
     application = ApplicationBuilder().token(cfg.bot_token).build()
     register(application, cfg)
     application.add_error_handler(on_error)
