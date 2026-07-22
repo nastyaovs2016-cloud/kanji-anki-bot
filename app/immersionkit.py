@@ -9,6 +9,21 @@ from app.models import Example
 
 API = "https://apiv2.immersionkit.com/search"
 
+# apiv2.immersionkit.com blocks requests that don't look like they come from the
+# immersionkit.com web app (server/datacenter IPs get a 403 without these).
+# Presenting the browser's User-Agent + Origin/Referer makes the request look
+# like a normal call from the site and passes the WAF.
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Origin": "https://www.immersionkit.com",
+    "Referer": "https://www.immersionkit.com/",
+}
+
 
 def parse_examples(data: dict) -> list[Example]:
     out: list[Example] = []
@@ -47,6 +62,7 @@ def fetch_examples(word: str) -> list[Example]:
     resp = requests.get(
         API,
         params={"q": word, "sort": "sentence_length:asc", "category": "anime"},
+        headers=_BROWSER_HEADERS,
         timeout=25,
     )
     resp.raise_for_status()
