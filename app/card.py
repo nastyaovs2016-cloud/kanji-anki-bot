@@ -65,7 +65,7 @@ img { max-width: 90%; margin-top: 16px; }
     )
 
 
-def _build_note(model: genanki.Model, spec: CardSpec, media: CardMedia):
+def _build_note(model: genanki.Model, spec: CardSpec, media: CardMedia) -> tuple[genanki.Note, list[str]]:
     example = spec.example
     sentence = example.sentence_furigana if example else ""
     translation = example.translation if example else ""

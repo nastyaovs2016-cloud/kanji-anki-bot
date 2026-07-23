@@ -45,7 +45,7 @@ def _fetch_tts(word: str) -> bytes | None:
         r = requests.get(
             GTTS_URL,
             params={"ie": "UTF-8", "q": word, "tl": "ja", "client": "tw-ob"},
-            headers=_HEADERS,
+            headers={**_HEADERS, "Referer": "https://translate.google.com/"},
             timeout=20,
         )
     except requests.RequestException:

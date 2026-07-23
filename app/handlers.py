@@ -185,12 +185,14 @@ def register(application: Application, settings: Settings) -> None:
         if not batch:
             await chat.send_message("Партия пуста.")
             return
-        await chat.send_message(f"⏳ Собираю {len(batch)} карт.…")
+        specs = list(batch)
+        n = len(specs)
+        await chat.send_message(f"⏳ Собираю {n} карт.…")
         temp_paths: list[str] = []
         out = None
         try:
             items: list[tuple[CardSpec, CardMedia]] = []
-            for spec in batch:
+            for spec in specs:
                 media = CardMedia()
                 if spec.example:
                     img_url, snd_url = immersionkit.media_urls(spec.example, deck_map)
@@ -209,13 +211,13 @@ def register(application: Application, settings: Settings) -> None:
             fd, out = tempfile.mkstemp(suffix=".apkg")
             os.close(fd)
             await _to_thread(card.build_apkg, items, deck_name, out)
-            first = batch[0].word_info.word
-            fname = f"{first}_{len(batch)}.apkg" if len(batch) > 1 else f"{first}.apkg"
+            first = specs[0].word_info.word
+            fname = f"{first}_{len(specs)}.apkg" if len(specs) > 1 else f"{first}.apkg"
             with open(out, "rb") as f:
                 await chat.send_document(
                     f, filename=fname,
-                    caption=f"Готово: {len(batch)} карт. → «{deck_name}». Открой в AnkiMobile.")
-            ctx.user_data["batch"] = []
+                    caption=f"Готово: {len(specs)} карт. → «{deck_name}». Открой в AnkiMobile.")
+            del batch[:n]
         finally:
             for p in temp_paths + ([out] if out else []):
                 try:
