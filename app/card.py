@@ -6,7 +6,7 @@ import os
 import genanki
 
 from app.config import MODEL_ID
-from app.models import Example, KanjiGloss, WordInfo
+from app.models import CardMedia, CardSpec, KanjiGloss
 
 
 def format_meaning(meanings: list[list[str]]) -> str:
@@ -31,7 +31,11 @@ def build_model() -> genanki.Model:
 .sentence { margin: 14px 0; }
 img { max-width: 90%; margin-top: 16px; }
 """
-    front = '<div class="word">{{Word}}</div>\n<div class="sentence">{{kanji:SentenceFurigana}}</div>'
+    front = (
+        '<div class="word">{{Word}}</div>\n'
+        "<div>{{WordAudio}}</div>\n"
+        '<div class="sentence">{{kanji:SentenceFurigana}}</div>'
+    )
     back = (
         "{{FrontSide}}\n<hr>\n"
         '<div class="section-title">Meaning</div>\n<div>{{Meaning}}</div>\n'
@@ -44,7 +48,7 @@ img { max-width: 90%; margin-top: 16px; }
     )
     return genanki.Model(
         MODEL_ID,
-        "Kanji Anki Bot",
+        "Kanji Anki Bot 2",
         fields=[
             {"name": "Word"},
             {"name": "Reading"},
@@ -54,50 +58,58 @@ img { max-width: 90%; margin-top: 16px; }
             {"name": "Translation"},
             {"name": "Audio"},
             {"name": "Image"},
+            {"name": "WordAudio"},
         ],
         templates=[{"name": "Card 1", "qfmt": front, "afmt": back}],
         css=css,
     )
 
 
-def build_apkg(
-    word_info: WordInfo,
-    glosses: list[KanjiGloss],
-    example: Example | None,
-    image_path: str | None,
-    sound_path: str | None,
-    deck_name: str,
-    out_path: str,
-) -> str:
+def _build_note(model: genanki.Model, spec: CardSpec, media: CardMedia) -> tuple[genanki.Note, list[str]]:
+    example = spec.example
     sentence = example.sentence_furigana if example else ""
     translation = example.translation if example else ""
     audio_field = ""
     image_field = ""
+    word_audio_field = ""
     media_files: list[str] = []
 
-    if example and sound_path:
-        audio_field = f"[sound:{os.path.basename(sound_path)}]"
-        media_files.append(sound_path)
-    if example and image_path:
-        image_field = f'<img src="{os.path.basename(image_path)}">'
-        media_files.append(image_path)
+    if example and media.sound_path:
+        audio_field = f"[sound:{os.path.basename(media.sound_path)}]"
+        media_files.append(media.sound_path)
+    if example and media.image_path:
+        image_field = f'<img src="{os.path.basename(media.image_path)}">'
+        media_files.append(media.image_path)
+    if media.word_audio_path:
+        word_audio_field = f"[sound:{os.path.basename(media.word_audio_path)}]"
+        media_files.append(media.word_audio_path)
 
     note = genanki.Note(
-        model=build_model(),
+        model=model,
         fields=[
-            word_info.word,
-            word_info.reading,
-            format_meaning(word_info.meanings),
-            format_kanji_block(glosses),
+            spec.word_info.word,
+            spec.word_info.reading,
+            format_meaning(spec.word_info.meanings),
+            format_kanji_block(spec.glosses),
             sentence,
             translation,
             audio_field,
             image_field,
+            word_audio_field,
         ],
     )
+    return note, media_files
+
+
+def build_apkg(items: list[tuple[CardSpec, CardMedia]], deck_name: str, out_path: str) -> str:
+    model = build_model()
     deck = genanki.Deck(deck_id_for(deck_name), deck_name)
-    deck.add_note(note)
+    all_media: list[str] = []
+    for spec, media in items:
+        note, media_files = _build_note(model, spec, media)
+        deck.add_note(note)
+        all_media.extend(media_files)
     package = genanki.Package(deck)
-    package.media_files = media_files
+    package.media_files = all_media
     package.write_to_file(out_path)
     return out_path

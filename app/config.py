@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-MODEL_ID = 1608310001
+MODEL_ID = 1608310002
 IMMERSIONKIT_MEDIA_BASE = "https://us-southeast-1.linodeobjects.com/immersionkit/media"
 
 _DATA_DIR = Path(__file__).parent / "data"
